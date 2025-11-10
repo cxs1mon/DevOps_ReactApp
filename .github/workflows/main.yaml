@@ -1,4 +1,4 @@
-name: Build & Push Docker (Docker Hub)
+name: Build & Push Docker (Docker Hub + GHCR)
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   docker:
@@ -25,39 +26,27 @@ jobs:
         run: |
           npm ci
           NODE_OPTIONS=--openssl-legacy-provider npm run build
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract Docker metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/react-app
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=sha
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push Docker images
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/react-app:latest
+            ghcr.io/${{ github.repository_owner }}/react-app:latest
           platforms: linux/amd64
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username:  ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build Docker image
-        run: docker build -t ghcr.io/${{github.repository_owner}}/react-app:latest .
-
-      - name: Push Docker image
-        run: docker push ghcr.io/${{github.repository_owner}}/react-app:latest
